@@ -1,53 +1,81 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * SkyVault 디자인 시스템
+ * 다크 네이비 + 골드 액센트 (시뮬레이터 동일)
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// ───── 팔레트 ─────
+export const Palette = {
+  bg: '#0a1628',
+  bg2: '#07101e',
+  surface: '#142844',
+  surface2: '#1d3759',
+  border: '#25405f',
+  borderStrong: '#37547a',
+  text: '#f5f7fa',
+  textDim: '#93a4b8',
+  textMute: '#6b7d92',
+  accent: '#f5b300',
+  accent2: '#ffc940',
+  accentWarm: '#ff8a3d',
+  ke: '#2f8fc4',
+  oz: '#e63946',
+  success: '#4ade80',
+  warn: '#fbbf24',
+  danger: '#ef4444',
+  info: '#60a5fa',
+} as const;
 
+// ───── 간격 / 모서리 ─────
+export const Spacing = {
+  xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48,
+} as const;
+
+export const Radius = {
+  sm: 8, md: 12, lg: 16, xl: 22, full: 9999,
+} as const;
+
+// ───── 타이포그래피 ─────
+export const Type = {
+  h1: { fontSize: 32, fontWeight: '800' as const, letterSpacing: -0.5 },
+  h2: { fontSize: 24, fontWeight: '800' as const, letterSpacing: -0.3 },
+  h3: { fontSize: 18, fontWeight: '700' as const },
+  body: { fontSize: 15, fontWeight: '400' as const },
+  bodyBold: { fontSize: 15, fontWeight: '600' as const },
+  caption: { fontSize: 13, fontWeight: '500' as const },
+  captionSmall: { fontSize: 12, fontWeight: '500' as const },
+  num: { fontSize: 36, fontWeight: '800' as const, letterSpacing: -0.8 },
+  numLarge: { fontSize: 44, fontWeight: '800' as const, letterSpacing: -1 },
+} as const;
+
+// ───── 기존 Expo 템플릿 호환 (Colors export) ─────
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    text: Palette.text,
+    background: Palette.bg,
+    tint: Palette.accent,
+    icon: Palette.textDim,
+    tabIconDefault: Palette.textMute,
+    tabIconSelected: Palette.accent,
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    text: Palette.text,
+    background: Palette.bg,
+    tint: Palette.accent,
+    icon: Palette.textDim,
+    tabIconDefault: Palette.textMute,
+    tabIconSelected: Palette.accent,
   },
 };
 
 export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
+  ios: { sans: 'system-ui', serif: 'ui-serif', rounded: 'ui-rounded', mono: 'ui-monospace' },
+  default: { sans: 'normal', serif: 'serif', rounded: 'normal', mono: 'monospace' },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    sans: "Pretendard, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    rounded: "'SF Pro Rounded', Pretendard, sans-serif",
+    mono: "SFMono-Regular, Menlo, Monaco, 'Courier New', monospace",
   },
 });

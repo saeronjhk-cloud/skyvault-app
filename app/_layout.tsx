@@ -1,24 +1,40 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Palette } from '@/constants/theme';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+const SkyVaultTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: Palette.bg,
+    card: Palette.surface,
+    text: Palette.text,
+    border: Palette.border,
+    primary: Palette.accent,
+    notification: Palette.accent,
+  },
+};
 
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+    <ThemeProvider value={SkyVaultTheme}>
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: Palette.bg },
+          headerTintColor: Palette.text,
+          contentStyle: { backgroundColor: Palette.bg },
+        }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', title: '' }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style="light" backgroundColor={Palette.bg} />
     </ThemeProvider>
   );
 }
