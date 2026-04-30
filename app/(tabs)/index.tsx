@@ -1,19 +1,35 @@
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Palette, Radius, Spacing, Type } from '@/constants/theme';
-
-// ───── 모의 데이터 (추후 Realm/Supabase에서 로드) ─────
-const MOCK_CARDS = [
-  { airline: '대한항공 SKYPASS', miles: 120000, nextExpiry: { date: '2027.06', miles: 5000 }, color: Palette.ke },
-  { airline: '아시아나 클럽',    miles: 67500,  nextExpiry: { date: '2027.12', miles: 12000 }, color: Palette.oz },
-];
-
-const TOTAL_MILES = MOCK_CARDS.reduce((acc, c) => acc + c.miles, 0);
-const RECENT_GAIN = 2300;
+import { getCards } from '@/lib/storage';
+import type { Card } from '@/lib/types';
 
 export default function HomeScreen() {
+  const [cards, setCards] = useState<Card[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const greeting = useGreeting();
+
+  // 홈 화면이 포커스될 때마다 카드 다시 읽음 (카드 추가 후 돌아왔을 때 자동 반영)
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        const data = await getCards();
+        if (active) {
+          setCards(data);
+          setLoaded(true);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
+  const totalMiles = cards.reduce((acc, c) => acc + c.miles, 0);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -36,53 +52,73 @@ export default function HomeScreen() {
         <View style={styles.hero}>
           <Text style={styles.heroLabel}>총 보유 마일</Text>
           <Text style={styles.heroValue}>
-            {TOTAL_MILES.toLocaleString('ko-KR')}
+            {totalMiles.toLocaleString('ko-KR')}
             <Text style={styles.heroUnit}>  mi</Text>
           </Text>
           <View style={styles.heroFooter}>
-            <Text style={styles.heroFooterIcon}>↑</Text>
-            <Text style={styles.heroFooterText}>최근 7일간 +{RECENT_GAIN.toLocaleString('ko-KR')}mi 적립</Text>
+            <Text style={styles.heroFooterText}>
+              {cards.length === 0
+                ? '아직 등록된 카드가 없어요'
+                : `${cards.length}개 카드 합산`}
+            </Text>
           </View>
         </View>
 
-        {/* Recommend */}
-        <Text style={styles.sectionTitle}>이번 주 추천</Text>
-        <Pressable style={styles.recommendCard} android_ripple={{ color: Palette.surface2 }}>
-          <View style={styles.warnDot} />
-          <View style={styles.recBody}>
-            <Text style={styles.recTitle}>대한항공 5,000mi 만료 임박</Text>
-            <Text style={styles.recSub}>D-23 · 비항공권 사용처로 살릴 수 있어요</Text>
-          </View>
-          <Text style={styles.recArrow}>›</Text>
-        </Pressable>
-
-        {/* Cards */}
+        {/* 카드 섹션 */}
         <View style={styles.sectionRow}>
           <Text style={styles.sectionTitle}>내 카드</Text>
-          <Pressable hitSlop={8}>
+          <Pressable hitSlop={10} onPress={() => router.push('/card-add')}>
             <Text style={styles.sectionAction}>+ 추가</Text>
           </Pressable>
         </View>
 
-        {MOCK_CARDS.map((card) => (
+        {/* 카드 목록 또는 빈 상태 */}
+        {!loaded ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>불러오는 중...</Text>
+          </View>
+        ) : cards.length === 0 ? (
           <Pressable
-            key={card.airline}
-            style={[styles.card, { borderLeftColor: card.color }]}
+            style={styles.emptyCta}
+            onPress={() => router.push('/card-add')}
             android_ripple={{ color: Palette.surface2 }}>
-            <View style={styles.cardRow}>
-              <Text style={styles.cardAirline}>{card.airline}</Text>
-              <Text style={styles.cardMiles}>{card.miles.toLocaleString('ko-KR')}mi</Text>
-            </View>
-            <Text style={styles.cardSub}>
-              다음 만료 {card.nextExpiry.date} · {card.nextExpiry.miles.toLocaleString('ko-KR')}mi
+            <Text style={styles.emptyCtaEmoji}>✈</Text>
+            <Text style={styles.emptyCtaTitle}>첫 카드를 추가해보세요</Text>
+            <Text style={styles.emptyCtaBody}>
+              항공사와 보유 마일만 입력하면 시작할 수 있어요.
             </Text>
           </Pressable>
-        ))}
+        ) : (
+          cards.map((card) => (
+            <Pressable
+              key={card.id}
+              style={[styles.card, { borderLeftColor: card.color }]}
+              android_ripple={{ color: Palette.surface2 }}>
+              <View style={styles.cardRow}>
+                <Text style={styles.cardAirline}>{card.airline}</Text>
+                <Text style={styles.cardMiles}>
+                  {card.miles.toLocaleString('ko-KR')}mi
+                </Text>
+              </View>
+              {card.nextExpiry && (
+                <Text style={styles.cardSub}>
+                  다음 만료 {card.nextExpiry.date} ·{' '}
+                  {card.nextExpiry.miles.toLocaleString('ko-KR')}mi
+                </Text>
+              )}
+            </Pressable>
+          ))
+        )}
 
         {/* CTA */}
-        <Pressable style={styles.ctaButton} android_ripple={{ color: Palette.accentWarm }}>
-          <Text style={styles.ctaText}>여행 플래너 열기</Text>
-        </Pressable>
+        {cards.length > 0 && (
+          <Pressable
+            style={styles.ctaButton}
+            onPress={() => router.push('/(tabs)/explore')}
+            android_ripple={{ color: Palette.accentWarm }}>
+            <Text style={styles.ctaText}>여행 플래너 열기</Text>
+          </Pressable>
+        )}
 
         <View style={{ height: Spacing.xxl }} />
       </ScrollView>
@@ -112,10 +148,14 @@ const styles = StyleSheet.create({
   greeting: { ...Type.caption, color: Palette.textDim, marginBottom: 2 },
   brand: { ...Type.h2, color: Palette.text },
   bellBtn: {
-    width: 42, height: 42, borderRadius: Radius.full,
+    width: 42,
+    height: 42,
+    borderRadius: Radius.full,
     backgroundColor: Palette.surface,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: Palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Palette.border,
   },
   bell: { fontSize: 18 },
 
@@ -124,17 +164,14 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     padding: Spacing.xl,
     marginBottom: Spacing.xl,
-    borderWidth: 1, borderColor: Palette.border,
+    borderWidth: 1,
+    borderColor: Palette.border,
   },
   heroLabel: { ...Type.caption, color: Palette.textDim, marginBottom: 8 },
   heroValue: { ...Type.numLarge, color: Palette.text },
   heroUnit: { fontSize: 18, color: Palette.textDim, fontWeight: '500' },
-  heroFooter: {
-    marginTop: Spacing.md,
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-  },
-  heroFooterIcon: { color: Palette.success, fontSize: 14, fontWeight: '700' },
-  heroFooterText: { ...Type.caption, color: Palette.success },
+  heroFooter: { marginTop: Spacing.md },
+  heroFooterText: { ...Type.caption, color: Palette.textDim },
 
   sectionTitle: { ...Type.h3, color: Palette.text, marginBottom: Spacing.md },
   sectionRow: {
@@ -146,25 +183,13 @@ const styles = StyleSheet.create({
   },
   sectionAction: { ...Type.caption, color: Palette.accent, fontWeight: '600' },
 
-  recommendCard: {
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.md,
-    padding: Spacing.md + 2,
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    borderWidth: 1, borderColor: 'rgba(251, 191, 36, 0.3)',
-  },
-  warnDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Palette.warn },
-  recBody: { flex: 1 },
-  recTitle: { ...Type.bodyBold, color: Palette.text },
-  recSub: { ...Type.captionSmall, color: Palette.textDim, marginTop: 3 },
-  recArrow: { fontSize: 24, color: Palette.textMute, fontWeight: '300' },
-
   card: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.md,
     padding: Spacing.md + 2,
     marginBottom: Spacing.sm,
-    borderWidth: 1, borderColor: Palette.border,
+    borderWidth: 1,
+    borderColor: Palette.border,
     borderLeftWidth: 4,
   },
   cardRow: {
@@ -173,8 +198,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardAirline: { ...Type.bodyBold, color: Palette.text },
-  cardMiles: { fontSize: 18, color: Palette.text, fontWeight: '800', letterSpacing: -0.3 },
+  cardMiles: {
+    fontSize: 18,
+    color: Palette.text,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
   cardSub: { ...Type.captionSmall, color: Palette.textMute, marginTop: 4 },
+
+  // 빈 상태 CTA
+  emptyCta: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl + 4,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+  },
+  emptyCtaEmoji: { fontSize: 32, marginBottom: Spacing.sm },
+  emptyCtaTitle: { ...Type.h3, color: Palette.text, marginBottom: 4 },
+  emptyCtaBody: { ...Type.caption, color: Palette.textDim, textAlign: 'center' },
+
+  emptyCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  emptyText: { ...Type.caption, color: Palette.textMute },
 
   ctaButton: {
     marginTop: Spacing.xl,
