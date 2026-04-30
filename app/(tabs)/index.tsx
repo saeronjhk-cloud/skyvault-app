@@ -4,6 +4,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Palette, Radius, Spacing, Type } from '@/constants/theme';
+import {
+  daysUntil,
+  formatExpiryDisplay,
+  getEarliestLot,
+  getExpiringSoon,
+  getUrgency,
+} from '@/lib/expiry';
 import { getCards } from '@/lib/storage';
 import type { Card } from '@/lib/types';
 
@@ -12,7 +19,6 @@ export default function HomeScreen() {
   const [loaded, setLoaded] = useState(false);
   const greeting = useGreeting();
 
-  // 홈 화면이 포커스될 때마다 카드 다시 읽음 (카드 추가 후 돌아왔을 때 자동 반영)
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -23,13 +29,12 @@ export default function HomeScreen() {
           setLoaded(true);
         }
       })();
-      return () => {
-        active = false;
-      };
-    }, [])
+      return () => { active = false; };
+    }, []),
   );
 
   const totalMiles = cards.reduce((acc, c) => acc + c.miles, 0);
+  const expiringSoon = getExpiringSoon(cards, 30);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -57,12 +62,39 @@ export default function HomeScreen() {
           </Text>
           <View style={styles.heroFooter}>
             <Text style={styles.heroFooterText}>
-              {cards.length === 0
-                ? '아직 등록된 카드가 없어요'
-                : `${cards.length}개 카드 합산`}
+              {cards.length === 0 ? '아직 등록된 카드가 없어요' : `${cards.length}개 카드 합산`}
             </Text>
           </View>
         </View>
+
+        {/* 만료 임박 */}
+        {expiringSoon.length > 0 && (
+          <>
+            <View style={styles.alertHeader}>
+              <View style={styles.warnDot} />
+              <Text style={styles.alertTitle}>이번 달 만료 임박</Text>
+              <Text style={styles.alertCount}>{expiringSoon.length}건</Text>
+            </View>
+            {expiringSoon.map((entry, i) => (
+              <Pressable
+                key={`expire-${entry.card.id}-${entry.lot.id}-${i}`}
+                style={styles.expireCard}
+                onPress={() => router.push(`/card/${entry.card.id}`)}
+                android_ripple={{ color: Palette.surface2 }}>
+                <View style={[styles.expireBar, { backgroundColor: entry.card.color }]} />
+                <View style={styles.expireBody}>
+                  <Text style={styles.expireAirline}>
+                    {entry.card.airline} · {entry.lot.miles.toLocaleString('ko-KR')}mi
+                  </Text>
+                  <Text style={styles.expireSub}>
+                    D-{entry.days} · {formatExpiryDisplay(entry.lot.date)} 만료
+                  </Text>
+                </View>
+                <Text style={styles.expireArrow}>›</Text>
+              </Pressable>
+            ))}
+          </>
+        )}
 
         {/* 카드 섹션 */}
         <View style={styles.sectionRow}>
@@ -72,7 +104,6 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* 카드 목록 또는 빈 상태 */}
         {!loaded ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyText}>불러오는 중...</Text>
@@ -84,33 +115,48 @@ export default function HomeScreen() {
             android_ripple={{ color: Palette.surface2 }}>
             <Text style={styles.emptyCtaEmoji}>✈</Text>
             <Text style={styles.emptyCtaTitle}>첫 카드를 추가해보세요</Text>
-            <Text style={styles.emptyCtaBody}>
-              항공사와 보유 마일만 입력하면 시작할 수 있어요.
-            </Text>
+            <Text style={styles.emptyCtaBody}>항공사와 보유 마일만 입력하면 시작할 수 있어요.</Text>
           </Pressable>
         ) : (
-          cards.map((card) => (
-            <Pressable
-              key={card.id}
-              style={[styles.card, { borderLeftColor: card.color }]}
-              android_ripple={{ color: Palette.surface2 }}>
-              <View style={styles.cardRow}>
-                <Text style={styles.cardAirline}>{card.airline}</Text>
-                <Text style={styles.cardMiles}>
-                  {card.miles.toLocaleString('ko-KR')}mi
-                </Text>
-              </View>
-              {card.nextExpiry && (
-                <Text style={styles.cardSub}>
-                  다음 만료 {card.nextExpiry.date} ·{' '}
-                  {card.nextExpiry.miles.toLocaleString('ko-KR')}mi
-                </Text>
-              )}
-            </Pressable>
-          ))
+          cards.map((card) => {
+            const earliest = getEarliestLot(card);
+            const urgency = getUrgency(earliest?.date);
+            const urgencyDays = earliest ? daysUntil(earliest.date) : null;
+            const lotCount = card.lots?.length ?? 0;
+            return (
+              <Pressable
+                key={card.id}
+                style={[styles.card, { borderLeftColor: card.color }]}
+                onPress={() => router.push(`/card/${card.id}`)}
+                android_ripple={{ color: Palette.surface2 }}>
+                <View style={styles.cardRow}>
+                  <Text style={styles.cardAirline}>{card.airline}</Text>
+                  <Text style={styles.cardMiles}>{card.miles.toLocaleString('ko-KR')}mi</Text>
+                </View>
+                {earliest && (
+                  <View style={styles.cardExpiryRow}>
+                    {urgency === 'critical' && <View style={styles.urgentDot} />}
+                    {urgency === 'soon' && <View style={[styles.urgentDot, { backgroundColor: Palette.info }]} />}
+                    <Text
+                      style={[
+                        styles.cardSub,
+                        urgency === 'critical' && { color: Palette.warn },
+                      ]}>
+                      {urgencyDays !== null && urgencyDays >= 0
+                        ? `D-${urgencyDays}`
+                        : '이미 만료'}
+                      {' · '}
+                      {formatExpiryDisplay(earliest.date)} ·{' '}
+                      {earliest.miles.toLocaleString('ko-KR')}mi
+                      {lotCount > 1 && ` (외 ${lotCount - 1}건)`}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })
         )}
 
-        {/* CTA */}
         {cards.length > 0 && (
           <Pressable
             style={styles.ctaButton}
@@ -140,22 +186,17 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxxl },
 
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: Spacing.xl,
   },
   greeting: { ...Type.caption, color: Palette.textDim, marginBottom: 2 },
   brand: { ...Type.h2, color: Palette.text },
   bellBtn: {
-    width: 42,
-    height: 42,
+    width: 42, height: 42,
     borderRadius: Radius.full,
     backgroundColor: Palette.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Palette.border,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: Palette.border,
   },
   bell: { fontSize: 18 },
 
@@ -164,8 +205,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     padding: Spacing.xl,
     marginBottom: Spacing.xl,
-    borderWidth: 1,
-    borderColor: Palette.border,
+    borderWidth: 1, borderColor: Palette.border,
   },
   heroLabel: { ...Type.caption, color: Palette.textDim, marginBottom: 8 },
   heroValue: { ...Type.numLarge, color: Palette.text },
@@ -173,11 +213,35 @@ const styles = StyleSheet.create({
   heroFooter: { marginTop: Spacing.md },
   heroFooterText: { ...Type.caption, color: Palette.textDim },
 
+  alertHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  warnDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Palette.warn },
+  alertTitle: { ...Type.h3, color: Palette.text, flex: 1 },
+  alertCount: {
+    ...Type.captionSmall, color: Palette.warn, fontWeight: '700',
+    backgroundColor: 'rgba(251, 191, 36, 0.12)',
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 12,
+  },
+  expireCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    marginBottom: Spacing.sm,
+    flexDirection: 'row', alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(251, 191, 36, 0.4)',
+  },
+  expireBar: { width: 4, alignSelf: 'stretch' },
+  expireBody: { flex: 1, padding: Spacing.md + 2 },
+  expireAirline: { ...Type.bodyBold, color: Palette.text },
+  expireSub: { ...Type.captionSmall, color: Palette.warn, marginTop: 3, fontWeight: '600' },
+  expireArrow: { fontSize: 24, color: Palette.textMute, fontWeight: '300', paddingRight: Spacing.md },
+
   sectionTitle: { ...Type.h3, color: Palette.text, marginBottom: Spacing.md },
   sectionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginTop: Spacing.lg,
     marginBottom: Spacing.md,
   },
@@ -188,32 +252,23 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.md + 2,
     marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Palette.border,
+    borderWidth: 1, borderColor: Palette.border,
     borderLeftWidth: 4,
   },
-  cardRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardAirline: { ...Type.bodyBold, color: Palette.text },
   cardMiles: {
-    fontSize: 18,
-    color: Palette.text,
-    fontWeight: '800',
-    letterSpacing: -0.3,
+    fontSize: 18, color: Palette.text, fontWeight: '800', letterSpacing: -0.3,
   },
-  cardSub: { ...Type.captionSmall, color: Palette.textMute, marginTop: 4 },
+  cardExpiryRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  urgentDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Palette.warn },
+  cardSub: { ...Type.captionSmall, color: Palette.textMute },
 
-  // 빈 상태 CTA
   emptyCta: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
     padding: Spacing.xl + 4,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    borderStyle: 'dashed',
+    borderWidth: 1, borderColor: Palette.border, borderStyle: 'dashed',
     alignItems: 'center',
   },
   emptyCtaEmoji: { fontSize: 32, marginBottom: Spacing.sm },
@@ -225,8 +280,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Palette.border,
+    borderWidth: 1, borderColor: Palette.border,
   },
   emptyText: { ...Type.caption, color: Palette.textMute },
 
@@ -237,10 +291,5 @@ const styles = StyleSheet.create({
     padding: Spacing.md + 4,
     alignItems: 'center',
   },
-  ctaText: {
-    color: '#1a1100',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
+  ctaText: { color: '#1a1100', fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
 });

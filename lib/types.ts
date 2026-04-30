@@ -1,24 +1,24 @@
 /**
- * SkyVault 데이터 모델
- * 1차 구현은 단순 Card 구조. 추후 Lot[] 분리 가능.
+ * SkyVault 데이터 모델 — 다중 Lot 지원.
  */
+
+export type Lot = {
+  id: string;        // React key + 편집/삭제용
+  date: string;      // 'YYYY-MM' 또는 'YYYY-MM-DD'
+  miles: number;
+};
 
 export type Card = {
   id: string;
   airline: string;
-  miles: number;
-  color: string;            // hex 값 (좌측 보더 색상)
-  nextExpiry?: {
-    date: string;           // YYYY-MM 또는 YYYY-MM-DD
-    miles: number;
-  };
-  createdAt: string;        // ISO 8601
+  miles: number;     // 총 보유 잔액 (lots 합계와 다를 수 있음)
+  color: string;
+  lots: Lot[];       // 만료 일정 (비어있을 수 있음)
+  createdAt: string;
 };
 
-// 카드 추가 시 자동 채워지는 필드 제외한 입력 타입
 export type CardInput = Omit<Card, 'id' | 'createdAt'>;
 
-// 항공사 프리셋 (추가 폼에서 빠른 선택용)
 export type AirlinePreset = {
   name: string;
   color: string;
